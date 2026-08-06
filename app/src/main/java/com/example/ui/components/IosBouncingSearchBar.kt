@@ -14,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -31,11 +32,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.NorthWest
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -61,6 +63,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import com.example.data.SampleData
 import com.example.model.SearchSuggestion
@@ -79,19 +82,25 @@ fun IosBouncingSearchBar(
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
     
-    // Scale bounce spring animation state on tap
+    // Tap bounce animation on search pill
     val scaleAnim = remember { Animatable(1f) }
     
-    // iOS Bouncy Spring Animation Spec
-    val springSpec = spring<Float>(
-        dampingRatio = Spring.DampingRatioMediumBouncy, // iOS signature bounce
+    // Smooth iOS bouncy spring when expanding, gentle no-bounce spring when collapsing
+    val expandSpringSpec = spring<Float>(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessLow
+    )
+    val shrinkSpringSpec = spring<Float>(
+        dampingRatio = Spring.DampingRatioNoBouncy,
         stiffness = Spring.StiffnessLow
     )
 
-    // Expanded Progress (0f when compact, 1f when full width expanded)
+    val currentSpringSpec = if (isExpanded) expandSpringSpec else shrinkSpringSpec
+
+    // Continuous progress value from 0f (compact) to 1f (full screen search bar)
     val expandProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
-        animationSpec = springSpec,
+        animationSpec = currentSpringSpec,
         label = "ios_bounce_expand"
     )
 
@@ -109,13 +118,14 @@ fun IosBouncingSearchBar(
     ) {
         // Dimmed Backdrop Overlay when expanded
         AnimatedVisibility(
-            visible = isExpanded,
+            visible = isExpanded || expandProgress > 0.05f,
             enter = fadeIn(),
             exit = fadeOut()
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .graphicsLayer { alpha = expandProgress.coerceIn(0f, 1f) }
                     .background(Color.Black.copy(alpha = 0.65f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -132,140 +142,150 @@ fun IosBouncingSearchBar(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.End
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                // Expanding Search Pill Surface
-                Surface(
-                    modifier = Modifier
-                        .testTag("ios_bouncing_search_bar")
-                        .weight(if (expandProgress > 0.01f) expandProgress else 0.001f, fill = isExpanded)
-                        .then(
-                            if (!isExpanded) Modifier.width(130.dp) else Modifier
-                        )
-                        .graphicsLayer {
-                            scaleX = scaleAnim.value
-                            scaleY = scaleAnim.value
-                        }
-                        .shadow(
-                            elevation = if (isExpanded) 12.dp else 4.dp,
-                            shape = RoundedCornerShape(24.dp),
-                            spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                        )
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable {
-                            if (!isExpanded) {
-                                scope.launch {
-                                    scaleAnim.animateTo(0.92f, springSpec)
-                                    scaleAnim.animateTo(1.0f, springSpec)
-                                }
-                                onExpandedChange(true)
-                            }
-                        },
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(24.dp)
+                val availableWidth = maxWidth
+                val compactWidth = 130.dp
+                val cancelWidth = 68.dp
+                
+                val activeMaxWidth = availableWidth - (cancelWidth * expandProgress)
+                val animatedBarWidth = lerp(compactWidth, activeMaxWidth, expandProgress.coerceIn(0f, 1f))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Row(
+                    // Smoothly Resizing Search Bar Surface
+                    Surface(
                         modifier = Modifier
-                            .height(48.dp)
-                            .padding(horizontal = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search Icon",
-                            tint = if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        if (isExpanded) {
-                            BasicTextField(
-                                value = query,
-                                onValueChange = onQueryChange,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .focusRequester(focusRequester)
-                                    .testTag("search_input_field"),
-                                textStyle = TextStyle(
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Medium
-                                ),
-                                singleLine = true,
-                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                keyboardActions = KeyboardActions(
-                                    onSearch = {
-                                        onSearchSubmit(query)
-                                        focusManager.clearFocus()
-                                    }
-                                ),
-                                decorationBox = { innerTextField ->
-                                    Box(contentAlignment = Alignment.CenterStart) {
-                                        if (query.isEmpty()) {
-                                            Text(
-                                                text = "Search YouTube, Music, Web...",
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                                fontSize = 14.sp
-                                            )
-                                        }
-                                        innerTextField()
-                                    }
-                                }
-                            )
-
-                            if (query.isNotEmpty()) {
-                                IconButton(
-                                    onClick = { onQueryChange("") },
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Clear text",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
+                            .testTag("ios_bouncing_search_bar")
+                            .width(animatedBarWidth)
+                            .graphicsLayer {
+                                scaleX = scaleAnim.value
+                                scaleY = scaleAnim.value
                             }
-                        } else {
-                            Text(
-                                text = "Search...",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
+                            .shadow(
+                                elevation = lerp(4.dp, 12.dp, expandProgress),
+                                shape = RoundedCornerShape(24.dp),
+                                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
                             )
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable {
+                                if (!isExpanded) {
+                                    scope.launch {
+                                        scaleAnim.animateTo(0.92f, expandSpringSpec)
+                                        scaleAnim.animateTo(1.0f, expandSpringSpec)
+                                    }
+                                    onExpandedChange(true)
+                                }
+                            },
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .height(48.dp)
+                                .padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search Icon",
+                                tint = if (expandProgress > 0.5f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            if (expandProgress > 0.1f) {
+                                BasicTextField(
+                                    value = query,
+                                    onValueChange = onQueryChange,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .focusRequester(focusRequester)
+                                        .testTag("search_input_field")
+                                        .graphicsLayer { alpha = ((expandProgress - 0.1f) / 0.9f).coerceIn(0f, 1f) },
+                                    textStyle = TextStyle(
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    singleLine = true,
+                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                    keyboardActions = KeyboardActions(
+                                        onSearch = {
+                                            onSearchSubmit(query)
+                                            focusManager.clearFocus()
+                                        }
+                                    ),
+                                    decorationBox = { innerTextField ->
+                                        Box(contentAlignment = Alignment.CenterStart) {
+                                            if (query.isEmpty()) {
+                                                Text(
+                                                    text = "Search YouTube, Music, Web...",
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                    fontSize = 14.sp
+                                                )
+                                            }
+                                            innerTextField()
+                                        }
+                                    }
+                                )
+
+                                if (query.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = { onQueryChange("") },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Clear text",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "Search...",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.graphicsLayer { alpha = (1f - expandProgress * 5f).coerceIn(0f, 1f) }
+                                )
+                            }
                         }
                     }
-                }
 
-                // iOS "Cancel" Button when Expanded
-                AnimatedVisibility(
-                    visible = isExpanded,
-                    enter = fadeIn() + slideInVertically { it / 2 },
-                    exit = fadeOut() + slideOutVertically { it / 2 }
-                ) {
-                    Text(
-                        text = "Cancel",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .clickable {
-                                onExpandedChange(false)
-                                onQueryChange("")
-                            }
-                            .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp)
-                    )
+                    // Smoothly Animated "Cancel" Button
+                    if (expandProgress > 0.05f) {
+                        Text(
+                            text = "Cancel",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    alpha = expandProgress.coerceIn(0f, 1f)
+                                    translationX = (1f - expandProgress) * 30f
+                                }
+                                .clip(CircleShape)
+                                .clickable {
+                                    onExpandedChange(false)
+                                    onQueryChange("")
+                                }
+                                .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp)
+                        )
+                    }
                 }
             }
 
-            // Live Recommendations Sheet when Search Expanded
+            // Suggestions dropdown with soft slide/fade transition
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = fadeIn() + slideInVertically { -it / 3 },
@@ -331,7 +351,7 @@ fun SearchSuggestionRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = if (suggestion.isTrending) Icons.Default.TrendingUp else Icons.Default.History,
+            imageVector = if (suggestion.isTrending) Icons.AutoMirrored.Filled.TrendingUp else Icons.Default.History,
             contentDescription = null,
             tint = if (suggestion.isTrending) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(18.dp)
@@ -361,3 +381,4 @@ fun SearchSuggestionRow(
         )
     }
 }
+
