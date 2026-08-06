@@ -8,47 +8,45 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme =
-  darkColorScheme(
-    primary = IndigoPrimary,
-    secondary = IndigoSecondary,
-    tertiary = PinkAccent,
-    background = DarkBackground,
-    surface = DarkSurface,
-    surfaceVariant = DarkSurfaceVariant,
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onBackground = Color.White,
-    onSurface = Color.White,
-    onSurfaceVariant = Color(0xFF94A3B8)
-  )
+  darkColorScheme(primary = Purple80, secondary = PurpleGrey80, tertiary = Pink80)
 
 private val LightColorScheme =
   lightColorScheme(
-    primary = IndigoPrimary,
-    secondary = IndigoSecondary,
-    tertiary = PinkAccent,
-    background = LightBackground,
-    surface = LightSurface,
-    surfaceVariant = LightSurfaceVariant,
+    primary = Purple40,
+    secondary = PurpleGrey40,
+    tertiary = Pink40,
+
+    /* Other default colors to override
+    background = Color(0xFFFFFBFE),
+    surface = Color(0xFFFFFBFE),
     onPrimary = Color.White,
     onSecondary = Color.White,
-    onBackground = Color(0xFF0F172A),
-    onSurface = Color(0xFF0F172A),
-    onSurfaceVariant = Color(0xFF64748B)
+    onTertiary = Color.White,
+    onBackground = Color(0xFF1C1B1F),
+    onSurface = Color(0xFF1C1B1F),
+    */
   )
 
 @Composable
-fun OrbitMediaTheme(
-  darkTheme: Boolean = true, // Default to dark media theme for rich YouTube & Music visual contrast
-  dynamicColor: Boolean = false,
+fun MyApplicationTheme(
+  darkTheme: Boolean = isSystemInDarkTheme(),
+  // Dynamic color is available on Android 12+
+  dynamicColor: Boolean = true,
   content: @Composable () -> Unit,
 ) {
-  val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+  val colorScheme =
+    when {
+      dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        val context = LocalContext.current
+        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+      }
+
+      darkTheme -> DarkColorScheme
+      else -> LightColorScheme
+    }
 
   MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
 }
-

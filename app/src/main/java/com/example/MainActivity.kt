@@ -1,273 +1,386 @@
 package com.example
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import android.view.WindowManager
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.ui.components.AnimatedBottomNavBar
-import com.example.ui.components.FullMusicPlayerSheet
-import com.example.ui.components.InteractiveVideoPlayer
-import com.example.ui.components.IosBouncingSearchBar
-import com.example.ui.components.MiniPlayerBar
+import androidx.compose.ui.zIndex
+import com.example.ui.components.CloudeHubSplashScreen
+import com.example.ui.components.FloatingAiLottieWidget
+import com.example.ui.CloudihubViewModel
+import com.example.ui.components.CloudSkyBackground
+import com.example.ui.components.DownloadsHub
+import com.example.ui.components.GlassmorphicNavBar
+import com.example.ui.components.NavigationTab
+import com.example.ui.components.VoiceSearchDialog
+import com.example.ui.components.VideoStreamingPlayer
+import com.example.ui.components.MusicBubblePlayer
+import com.example.ui.screens.DownloadsScreen
+import com.example.ui.screens.AiCopilotFullChatScreen
 import com.example.ui.screens.BrowserScreen
+import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.MusicScreen
-import com.example.ui.screens.YoutubeFeedScreen
-import com.example.ui.theme.OrbitMediaTheme
-import com.example.ui.viewmodel.MediaViewModel
-import com.example.ui.viewmodel.NavTab
+import com.example.ui.screens.ProfileScreen
+import com.example.ui.screens.SitesScreen
+import com.example.ui.screens.HubScreen
+import com.example.ui.screens.SignupScreen
+import com.example.ui.screens.ShortsScreen
+import com.example.ui.theme.MyApplicationTheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.biometric.BiometricPrompt
+import androidx.biometric.BiometricManager
+import androidx.core.content.ContextCompat
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.size
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
+    
+    private val viewModel: CloudihubViewModel by viewModels()
 
-    private val viewModel: MediaViewModel by viewModels()
+    fun showBiometricPrompt() {
+        val executor = ContextCompat.getMainExecutor(this)
+        val biometricPrompt = BiometricPrompt(this, executor,
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    super.onAuthenticationError(errorCode, errString)
+                    Toast.makeText(this@MainActivity, "Verification required: $errString", Toast.LENGTH_SHORT).show()
+                    viewModel.showFingerprintAuth = false
+                }
+
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    super.onAuthenticationSucceeded(result)
+                    Toast.makeText(this@MainActivity, "Authentication Succeeded", Toast.LENGTH_SHORT).show()
+                    viewModel.showFingerprintAuth = false
+                    if (viewModel.biometricAuthTarget == "private_vault") {
+                        viewModel.activeProfilePage = "private_vault"
+                    } else {
+                        viewModel.activeProfilePage = "linked_devices"
+                    }
+                }
+
+                override fun onAuthenticationFailed() {
+                    super.onAuthenticationFailed()
+                    Toast.makeText(this@MainActivity, "Biometric failed. Please try again.", Toast.LENGTH_SHORT).show()
+                }
+            })
+
+        val promptBuilder = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Verify Identity")
+            .setSubtitle("Authenticate to access linked devices securely")
+
+        try {
+            promptBuilder.setAllowedAuthenticators(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or 
+                BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+        } catch (e: Exception) {
+            promptBuilder.setNegativeButtonText("Cancel")
+        }
+
+        val promptInfo = promptBuilder.build()
+
+        try {
+            biometricPrompt.authenticate(promptInfo)
+        } catch (e: Exception) {
+            Toast.makeText(this@MainActivity, "Security Error: Please setup phone password/PIN to secure your data.", Toast.LENGTH_LONG).show()
+            viewModel.showFingerprintAuth = false
+            viewModel.activeProfilePage = "main"
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Fullscreen edge-to-edge setup
         enableEdgeToEdge()
-
+        
         setContent {
-            OrbitMediaTheme {
-                val state by viewModel.uiState.collectAsStateWithLifecycle()
+            var showSplashScreen by remember { mutableStateOf(true) }
+            var showExitConfirmDialog by remember { mutableStateOf(false) }
 
-                Scaffold(
+            BackHandler {
+                if (showSplashScreen) {
+                    showSplashScreen = false
+                } else if (showExitConfirmDialog) {
+                    showExitConfirmDialog = false
+                } else if (viewModel.showPrivateVaultUnlockDialog || viewModel.showPrivateVaultPasswordInputDialog || viewModel.showPrivateVaultPasswordTypeDialog) {
+                    viewModel.showPrivateVaultUnlockDialog = false
+                    viewModel.showPrivateVaultPasswordInputDialog = false
+                    viewModel.showPrivateVaultPasswordTypeDialog = false
+                } else if (viewModel.selectedVaultFolder != null) {
+                    viewModel.selectedVaultFolder = null
+                } else if (viewModel.showVoiceDialog) {
+                    viewModel.stopVoiceSearch()
+                } else if (viewModel.showFullScreenDownloads) {
+                    viewModel.showFullScreenDownloads = false
+                } else if (viewModel.showSignupScreen) {
+                    viewModel.showSignupScreen = false
+                } else if (viewModel.showAiFullChatScreen) {
+                    viewModel.showAiFullChatScreen = false
+                } else if (viewModel.showShortsScreen) {
+                    viewModel.closeShortsScreen()
+                } else if (viewModel.isFullMusicPlayerOpen) {
+                    viewModel.isFullMusicPlayerOpen = false
+                } else if (viewModel.playingVideo != null && viewModel.isVideoPlayerExpanded) {
+                    viewModel.isVideoPlayerExpanded = false
+                } else if (viewModel.isPlaylistOverlayOpen) {
+                    viewModel.isPlaylistOverlayOpen = false
+                } else if (viewModel.activeProfilePage != "main") {
+                    viewModel.activeProfilePage = "main"
+                } else if (viewModel.activeTab == NavigationTab.Browser && viewModel.browserUrl.isNotEmpty()) {
+                    viewModel.openUrl("")
+                } else if (viewModel.activeTab != NavigationTab.Home) {
+                    viewModel.selectTab(NavigationTab.Home)
+                } else {
+                    showExitConfirmDialog = true
+                }
+            }
+
+            val isVaultActive = viewModel.activeProfilePage == "private_vault" && viewModel.activeTab == NavigationTab.Profile
+            LaunchedEffect(isVaultActive) {
+                val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+                if (isVaultActive) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    insetsController.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    insetsController.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                }
+            }
+
+            LaunchedEffect(viewModel.showFingerprintAuth) {
+                if (viewModel.showFingerprintAuth) {
+                    showBiometricPrompt()
+                }
+            }
+
+            MyApplicationTheme(darkTheme = viewModel.isDarkTheme, dynamicColor = false) {
+                Surface(
                     modifier = Modifier.fillMaxSize(),
-                    bottomBar = {
-                        // Animated Bottom Nav Bar
-                        AnimatedBottomNavBar(
-                            currentTab = state.currentTab,
-                            onTabSelected = { viewModel.selectTab(it) }
-                        )
-                    }
-                ) { innerPadding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                    ) {
-                        Column(modifier = Modifier.fillMaxSize()) {
-                            // Top App Header & iOS Bouncing Search Bar
-                            TopHeaderBar(
-                                searchQuery = state.searchQuery,
-                                isSearchExpanded = state.isSearchExpanded,
-                                onQueryChange = { viewModel.updateSearchQuery(it) },
-                                onSearchExpandedChange = { viewModel.setSearchExpanded(it) },
-                                onSearchSubmit = { query ->
-                                    if (query.isNotEmpty()) {
-                                        viewModel.navigateToUrl("https://google.com/search?q=$query")
-                                        viewModel.selectTab(NavTab.BROWSER)
-                                    }
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        // 0. Premium CloudeHub Animated Splash Screen Overlay
+                        AnimatedVisibility(
+                            visible = showSplashScreen,
+                            enter = fadeIn(),
+                            exit = fadeOut(animationSpec = tween(600)) + scaleOut(targetScale = 1.08f, animationSpec = tween(600)),
+                            modifier = Modifier.zIndex(2000f)
+                        ) {
+                            CloudeHubSplashScreen(
+                                onSplashFinished = {
+                                    showSplashScreen = false
                                 }
                             )
+                        }
 
-                            // Main Content with Spring Slide/Fade Transitions between tabs
-                            AnimatedContent(
-                                targetState = state.currentTab,
-                                transitionSpec = {
-                                    (fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)) +
-                                            slideInVertically(animationSpec = spring(stiffness = Spring.StiffnessLow)) { it / 6 })
-                                        .togetherWith(
-                                            fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow)) +
-                                                    slideOutVertically(animationSpec = spring(stiffness = Spring.StiffnessLow)) { -it / 6 }
-                                        )
-                                },
-                                label = "tab_transition",
-                                modifier = Modifier.weight(1f)
-                            ) { tab ->
-                                when (tab) {
-                                    NavTab.YOUTUBE -> YoutubeFeedScreen(
-                                        selectedCategory = state.selectedCategory,
-                                        onCategorySelect = { viewModel.selectCategory(it) },
-                                        onVideoClick = { video -> viewModel.openVideo(video) }
-                                    )
+                        // 1. Organic drifting cloud background layers
+                        CloudSkyBackground()
 
-                                    NavTab.MUSIC -> MusicScreen(
-                                        activeTrack = state.selectedTrack,
-                                        isPlaying = state.isMusicPlaying,
-                                        onTrackSelect = { track -> viewModel.playTrack(track, openFullscreen = true) }
-                                    )
-
-                                    NavTab.BROWSER -> BrowserScreen(
-                                        currentUrl = state.currentUrl,
-                                        inputUrl = state.browserInput,
-                                        browserTitle = state.browserTitle,
-                                        onInputChange = { viewModel.updateBrowserInput(it) },
-                                        onNavigate = { viewModel.navigateToUrl(it) }
-                                    )
+                        // 2. Active Screen content router
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            if (viewModel.showSignupScreen) {
+                                SignupScreen(viewModel = viewModel)
+                            } else if (viewModel.showAiFullChatScreen) {
+                                AiCopilotFullChatScreen(viewModel = viewModel)
+                            } else {
+                                when (viewModel.activeTab) {
+                                    NavigationTab.Profile -> ProfileScreen(viewModel = viewModel)
+                                    NavigationTab.Home -> HomeScreen(viewModel = viewModel)
+                                    NavigationTab.Music -> MusicScreen(viewModel = viewModel)
+                                    NavigationTab.Hub -> HubScreen(viewModel = viewModel)
+                                    NavigationTab.Browser -> BrowserScreen(viewModel = viewModel)
                                 }
                             }
                         }
 
-                        // Floating Picture-in-Picture YouTube Floating Video Window (Exact match to screenshot)
+                        // 3. Floating glassmorphic navigation bar with scroll hide/show animation
+                        val shouldHideNavBar = viewModel.showSignupScreen || 
+                                viewModel.showAiFullChatScreen || 
+                                isVaultActive || 
+                                (viewModel.activeTab == NavigationTab.Browser && (viewModel.isBrowserFullscreen || viewModel.browserUrl.isNotEmpty())) ||
+                                viewModel.isPlaylistOverlayOpen ||
+                                viewModel.isFullMusicPlayerOpen ||
+                                !viewModel.isNavBarVisible
+
                         AnimatedVisibility(
-                            visible = state.isVideoMiniPlayer && state.selectedVideo != null,
-                            enter = slideInVertically { it } + fadeIn(),
-                            exit = slideOutVertically { it } + fadeOut(),
+                            visible = !shouldHideNavBar,
+                            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        ) {
+                            GlassmorphicNavBar(
+                                activeTab = viewModel.activeTab,
+                                onTabSelected = { viewModel.selectTab(it) }
+                            )
+                        }
+
+                        // 4. Edge-to-edge solid full screen Voice View
+                        if (viewModel.showVoiceDialog) {
+                            VoiceSearchDialog(
+                                viewModel = viewModel,
+                                modifier = Modifier.zIndex(600f)
+                            )
+                        }
+
+                        // 5. Sliding downloads hub list panel
+                        DownloadsHub(viewModel = viewModel)
+
+                        // 6. Shared Element Spring Animated Video Streaming Player
+                        val isHiddenScreen = (viewModel.activeTab == NavigationTab.Profile || viewModel.activeTab == NavigationTab.Browser)
+                        val isPlayerVisible = viewModel.playingVideo != null && !viewModel.isFullMusicPlayerOpen && (viewModel.isVideoPlayerExpanded || !isHiddenScreen)
+
+                        AnimatedVisibility(
+                            visible = isPlayerVisible,
+                            enter = slideInVertically(initialOffsetY = { it / 2 }, animationSpec = spring(stiffness = 350f, dampingRatio = 0.8f)) +
+                                    scaleIn(initialScale = 0.85f, animationSpec = spring(stiffness = 350f, dampingRatio = 0.8f)) +
+                                    fadeIn(animationSpec = spring(stiffness = 350f)),
+                            exit = slideOutVertically(targetOffsetY = { it }, animationSpec = spring(stiffness = 350f, dampingRatio = 0.8f)) +
+                                   scaleOut(targetScale = 0.85f, animationSpec = spring(stiffness = 350f, dampingRatio = 0.8f)) +
+                                   fadeOut(animationSpec = spring(stiffness = 350f))
+                        ) {
+                            VideoStreamingPlayer(viewModel = viewModel)
+                        }
+
+                        // 7. Fullscreen Shorts Screen
+                        if (viewModel.showShortsScreen) {
+                            ShortsScreen(
+                                viewModel = viewModel,
+                                modifier = Modifier.zIndex(400f)
+                            )
+                        }
+
+                        // 8. Fullscreen Downloads Screen (Hidden status bar, horizontal slide sections: Download, Videos, Music, Folders)
+                        if (viewModel.showFullScreenDownloads) {
+                            DownloadsScreen(
+                                viewModel = viewModel,
+                                modifier = Modifier.zIndex(500f)
+                            )
+                        }
+
+                        // Fullscreen Signup & Bind Screen (Hidden status bar like Downloads screen)
+                        if (viewModel.showSignupScreen) {
+                            SignupScreen(
+                                viewModel = viewModel,
+                                modifier = Modifier.zIndex(500f)
+                            )
+                        }
+
+                        // 7. Floating Music Bubble Player (Available across pages when playing music)
+                        MusicBubblePlayer(
+                            viewModel = viewModel,
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .padding(12.dp)
-                        ) {
-                            state.selectedVideo?.let { minVideo ->
-                                MiniPlayerBar(
-                                    video = minVideo,
-                                    isPlaying = state.isVideoPlaying,
-                                    progress = state.videoProgress,
-                                    onExpand = { viewModel.expandVideoFromMiniPlayer() },
-                                    onPlayToggle = { viewModel.toggleVideoPlay() },
-                                    onClose = { viewModel.dismissVideoPlayer() }
-                                )
-                            }
-                        }
-
-                        // Fullscreen Interactive Video Player Overlay
-                        AnimatedVisibility(
-                            visible = state.isVideoFullscreen && state.selectedVideo != null,
-                            enter = slideInVertically { it } + fadeIn(),
-                            exit = slideOutVertically { it } + fadeOut()
-                        ) {
-                            state.selectedVideo?.let { fullVideo ->
-                                InteractiveVideoPlayer(
-                                    video = fullVideo,
-                                    isPlaying = state.isVideoPlaying,
-                                    progress = state.videoProgress,
-                                    isLiked = state.isVideoLiked,
-                                    onPlayToggle = { viewModel.toggleVideoPlay() },
-                                    onProgressChange = { viewModel.updateVideoProgress(it) },
-                                    onMinimize = { viewModel.minimizeVideoToMiniPlayer() },
-                                    onClose = { viewModel.dismissVideoPlayer() },
-                                    onLikeToggle = { viewModel.toggleVideoLike() },
-                                    onVideoSelect = { viewModel.openVideo(it) }
-                                )
-                            }
-                        }
-
-                        // Fullscreen Music Player Sheet Overlay
-                        AnimatedVisibility(
-                            visible = state.isMusicFullscreen && state.selectedTrack != null,
-                            enter = slideInVertically { it } + fadeIn(),
-                            exit = slideOutVertically { it } + fadeOut()
-                        ) {
-                            state.selectedTrack?.let { fullTrack ->
-                                FullMusicPlayerSheet(
-                                    track = fullTrack,
-                                    isPlaying = state.isMusicPlaying,
-                                    progress = state.musicProgress,
-                                    onPlayToggle = { viewModel.toggleMusicPlay() },
-                                    onProgressChange = { viewModel.updateMusicProgress(it) },
-                                    onNext = { viewModel.playNextTrack() },
-                                    onPrevious = { viewModel.playPreviousTrack() },
-                                    onDismiss = { viewModel.setMusicFullscreen(false) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun TopHeaderBar(
-    searchQuery: String,
-    isSearchExpanded: Boolean,
-    onQueryChange: (String) -> Unit,
-    onSearchExpandedChange: (Boolean) -> Unit,
-    onSearchSubmit: (String) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (!isSearchExpanded) {
-                // App Brand Logo & Title
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayCircle,
-                            contentDescription = "Logo",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                                .padding(bottom = 85.dp, end = 10.dp)
                         )
+
+                        // 8. Global Floating AI Lottie Assistant Overlay (Available across all screens except Private Vault, Signup, Full AI Chat, Active Website View & Full Music Player)
+                        val isBrowsingActiveSite = (viewModel.activeTab == NavigationTab.Browser && viewModel.browserUrl.isNotEmpty())
+                        if (!isVaultActive && !viewModel.showSignupScreen && !viewModel.showAiFullChatScreen && !isBrowsingActiveSite && !viewModel.isFullMusicPlayerOpen) {
+                            FloatingAiLottieWidget(
+                                viewModel = viewModel,
+                                isMediaPlaying = (viewModel.activeStreamingUrl.isNotEmpty() || viewModel.isPlaying),
+                                onSearchRequested = { query ->
+                                    viewModel.updateSearchQuery(query)
+                                    viewModel.selectTab(NavigationTab.Home)
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(bottom = 90.dp, end = 0.dp)
+                                    .zIndex(300f)
+                            )
+                        }
+
+                        // 9. Exit Confirmation Popup Dialog
+                        if (showExitConfirmDialog) {
+                            AlertDialog(
+                                onDismissRequest = { showExitConfirmDialog = false },
+                                icon = {
+                                    Icon(
+                                        imageVector = Icons.Default.PowerSettingsNew,
+                                        contentDescription = "Exit App",
+                                        tint = Color(0xFFEF4444),
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                },
+                                title = {
+                                    Text(
+                                        text = "Exit Application?",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = Color(0xFF0F172A)
+                                    )
+                                },
+                                text = {
+                                    Text(
+                                        text = "Are you sure you want to quit CloudiHub?",
+                                        fontSize = 14.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+                                },
+                                confirmButton = {
+                                    Button(
+                                        onClick = {
+                                            showExitConfirmDialog = false
+                                            finish()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFFEF4444)
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Text("Quit App", color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                },
+                                dismissButton = {
+                                    OutlinedButton(
+                                        onClick = { showExitConfirmDialog = false },
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, Color(0xFFCBD5E1))
+                                    ) {
+                                        Text("Cancel", color = Color(0xFF475569), fontWeight = FontWeight.SemiBold)
+                                    }
+                                },
+                                containerColor = Color.White,
+                                shape = RoundedCornerShape(24.dp),
+                                modifier = Modifier.zIndex(1000f)
+                            )
+                        }
                     }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Text(
-                        text = "Orbit Media",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        letterSpacing = (-0.5).sp
-                    )
                 }
             }
-
-            // Compact / Bouncing Search Bar
-            IosBouncingSearchBar(
-                query = searchQuery,
-                onQueryChange = onQueryChange,
-                isExpanded = isSearchExpanded,
-                onExpandedChange = onSearchExpandedChange,
-                onSearchSubmit = onSearchSubmit,
-                modifier = Modifier.testTag("top_ios_search_bar")
-            )
         }
     }
 }

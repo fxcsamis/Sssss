@@ -65,9 +65,23 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
-import com.example.data.SampleData
-import com.example.model.SearchSuggestion
 import kotlinx.coroutines.launch
+
+data class CloudSearchSuggestion(
+    val text: String,
+    val category: String,
+    val isTrending: Boolean
+)
+
+val defaultCloudSuggestions = listOf(
+    CloudSearchSuggestion("Beautiful Aurora", "Trending Videos", true),
+    CloudSearchSuggestion("Nimbus Cloud Timelapse", "Cloud Media", true),
+    CloudSearchSuggestion("Cosmic Stardust Ambient", "Music Stream", true),
+    CloudSearchSuggestion("Lightning Strike 4K", "Shorts", true),
+    CloudSearchSuggestion("Solar Eclipse HD", "Cloud Media", true),
+    CloudSearchSuggestion("Lo-Fi Study Chill Beats", "Trending Music", false),
+    CloudSearchSuggestion("Cloudihub Vault Storage", "Cloud Features", false)
+)
 
 @Composable
 fun IosBouncingSearchBar(
@@ -310,7 +324,7 @@ fun IosBouncingSearchBar(
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
 
-                        val filteredList = SampleData.searchSuggestions.filter {
+                        val filteredList = defaultCloudSuggestions.filter {
                             query.isEmpty() || it.text.contains(query, ignoreCase = true)
                         }
 
@@ -339,7 +353,7 @@ fun IosBouncingSearchBar(
 
 @Composable
 fun SearchSuggestionRow(
-    suggestion: SearchSuggestion,
+    suggestion: CloudSearchSuggestion,
     onClick: () -> Unit
 ) {
     Row(

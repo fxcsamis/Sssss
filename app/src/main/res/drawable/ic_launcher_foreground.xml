@@ -1,21 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <!-- Outer Orbital Ring -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FF6366F1"
-        android:strokeWidth="3.5"
-        android:pathData="M 54,26 A 28,28 0 1,0 82,54" />
-    <!-- Glowing Orbital Dot -->
-    <path
-        android:fillColor="#FFEC4899"
-        android:pathData="M 54,21 a 5,5 0 1,0 0.01,0" />
-    <!-- Center Play Triangle -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M 47,41 L 67,54 L 47,67 Z" />
-</vector>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="44dp"
+        android:height="44dp"
+        android:drawable="@drawable/cloudihub_logo_1784004021392"
+        android:gravity="center" />
+</layer-list>
