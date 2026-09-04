@@ -1,0 +1,311 @@
+package com.fxc.themusicapp
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import com.fxc.themusicapp.data.VideoItem
+import com.fxc.themusicapp.ui.home.HomeScreen
+import com.fxc.themusicapp.ui.home.HomeViewModel
+import com.fxc.themusicapp.ui.player.PlayerViewModel
+import com.fxc.themusicapp.ui.theme.IvorMusicTheme
+import com.fxc.themusicapp.ui.theme.ThemeViewModel
+import com.fxc.themusicapp.data.PlayerStyle
+import androidx.compose.ui.unit.dp
+
+
+import androidx.compose.foundation.isSystemInDarkTheme
+import com.fxc.themusicapp.ui.theme.ThemeMode
+
+class MainActivity : ComponentActivity() {
+    
+    companion object {
+        private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
+    }
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        
+        requestNotificationPermission()
+        
+        setContent {
+            val themeViewModel: ThemeViewModel = viewModel()
+            val themeMode by themeViewModel.themeMode.collectAsState()
+            val loadLocalSongs by themeViewModel.loadLocalSongs.collectAsState()
+            val ambientBackground by themeViewModel.ambientBackground.collectAsState()
+            val videoMode by themeViewModel.videoMode.collectAsState()
+            val playerStyle by themeViewModel.playerStyle.collectAsState()
+            val saveVideoHistory by themeViewModel.saveVideoHistory.collectAsState()
+            val excludedFolders by themeViewModel.excludedFolders.collectAsState()
+            
+            val cacheEnabled by themeViewModel.cacheEnabled.collectAsState()
+            val maxCacheSizeMb by themeViewModel.maxCacheSizeMb.collectAsState()
+            val currentCacheSize by themeViewModel.currentCacheSizeBytes.collectAsState()
+            val crossfadeEnabled by themeViewModel.crossfadeEnabled.collectAsState()
+            val crossfadeDurationMs by themeViewModel.crossfadeDurationMs.collectAsState()
+            
+            val isSystemDark = isSystemInDarkTheme()
+            val isDarkTheme = remember(themeMode, isSystemDark) {
+                when (themeMode) {
+                    ThemeMode.SYSTEM -> isSystemDark
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                }
+            }
+            
+            IvorMusicTheme(darkTheme = isDarkTheme) {
+                MusicApp(
+                    currentThemeMode = themeMode,
+                    onThemeModeChange = { themeViewModel.setThemeMode(it) },
+                    isDarkMode = isDarkTheme, // Derived for compatibility
+                    onThemeToggle = { isDark ->
+                        themeViewModel.setThemeMode(if (isDark) ThemeMode.DARK else ThemeMode.LIGHT)
+                    },
+                    loadLocalSongs = loadLocalSongs,
+                    onLoadLocalSongsToggle = { themeViewModel.setLoadLocalSongs(it) },
+                    ambientBackground = ambientBackground,
+                    onAmbientBackgroundToggle = { themeViewModel.setAmbientBackground(it) },
+                    videoMode = videoMode,
+                    onVideoModeToggle = { themeViewModel.setVideoMode(it) },
+                    playerStyle = playerStyle,
+                    onPlayerStyleChange = { themeViewModel.setPlayerStyle(it) },
+                    saveVideoHistory = saveVideoHistory,
+                    onSaveVideoHistoryToggle = { themeViewModel.setSaveVideoHistory(it) },
+                    excludedFolders = excludedFolders,
+                    onAddExcludedFolder = { themeViewModel.addExcludedFolder(it) },
+                    onRemoveExcludedFolder = { themeViewModel.removeExcludedFolder(it) },
+                    cacheEnabled = cacheEnabled,
+                    onCacheEnabledToggle = { themeViewModel.setCacheEnabled(it) },
+                    maxCacheSizeMb = maxCacheSizeMb,
+                    onMaxCacheSizeMbChange = { themeViewModel.setMaxCacheSizeMb(it) },
+                    currentCacheSize = currentCacheSize,
+                    onClearCacheClick = { themeViewModel.clearCacheAction() },
+                    crossfadeEnabled = crossfadeEnabled,
+                    onCrossfadeEnabledToggle = { themeViewModel.toggleCrossfadeEnabled() },
+                    crossfadeDurationMs = crossfadeDurationMs,
+                    onCrossfadeDurationChange = { themeViewModel.setCrossfadeDuration(it) }
+                )
+            }
+        }
+    }
+    
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    NOTIFICATION_PERMISSION_REQUEST_CODE
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun MusicApp(
+    currentThemeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
+    isDarkMode: Boolean,
+    onThemeToggle: (Boolean) -> Unit,
+    loadLocalSongs: Boolean,
+    onLoadLocalSongsToggle: (Boolean) -> Unit,
+    ambientBackground: Boolean,
+    onAmbientBackgroundToggle: (Boolean) -> Unit,
+    videoMode: Boolean,
+    onVideoModeToggle: (Boolean) -> Unit,
+    playerStyle: PlayerStyle,
+    onPlayerStyleChange: (PlayerStyle) -> Unit,
+    saveVideoHistory: Boolean,
+    onSaveVideoHistoryToggle: (Boolean) -> Unit,
+    excludedFolders: Set<String>,
+    onAddExcludedFolder: (String) -> Unit,
+    onRemoveExcludedFolder: (String) -> Unit,
+    cacheEnabled: Boolean,
+    onCacheEnabledToggle: (Boolean) -> Unit,
+    maxCacheSizeMb: Long,
+    onMaxCacheSizeMbChange: (Long) -> Unit,
+    currentCacheSize: Long,
+    onClearCacheClick: () -> Unit,
+    crossfadeEnabled: Boolean,
+    onCrossfadeEnabledToggle: (Boolean) -> Unit,
+    crossfadeDurationMs: Int,
+    onCrossfadeDurationChange: (Int) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val navController = rememberNavController()
+    val playerViewModel: PlayerViewModel = remember { PlayerViewModel(context) }
+    val homeViewModel: HomeViewModel = viewModel()
+    
+    val videoPlayerViewModel: com.fxc.themusicapp.ui.video.VideoPlayerViewModel = viewModel()
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        NavHost(navController = navController, startDestination = "home") {
+
+            composable("home") {
+                HomeScreen(
+                    onSongClick = { song ->
+                        playerViewModel.playSong(song)
+                    },
+                    playerViewModel = playerViewModel,
+                    viewModel = homeViewModel,
+                    isDarkMode = isDarkMode,
+                    onThemeToggle = onThemeToggle,
+                    onNavigateToSettings = { navController.navigate("settings") },
+                    onNavigateToDownloads = { navController.navigate("downloads") },
+                    onNavigateToStats = { navController.navigate("stats") },
+                    onNavigateToVideoPlayer = { video ->
+                        videoPlayerViewModel.playVideo(video)
+                    },
+                    loadLocalSongs = loadLocalSongs,
+                    excludedFolders = excludedFolders,
+                    ambientBackground = ambientBackground,
+                    videoMode = videoMode,
+                    playerStyle = playerStyle
+                )
+            }
+            composable(
+                route = "settings",
+                enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
+                exitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() },
+                popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 3 }) + fadeIn() },
+                popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
+            ) {
+                com.fxc.themusicapp.ui.settings.SettingsScreen(
+                    currentThemeMode = currentThemeMode,
+                    onThemeModeChange = onThemeModeChange,
+                    loadLocalSongs = loadLocalSongs,
+                    onLoadLocalSongsToggle = onLoadLocalSongsToggle,
+                    ambientBackground = ambientBackground,
+                    onAmbientBackgroundToggle = onAmbientBackgroundToggle,
+                    videoMode = videoMode,
+                    onVideoModeToggle = onVideoModeToggle,
+                    playerStyle = playerStyle,
+                    onPlayerStyleChange = onPlayerStyleChange,
+                    saveVideoHistory = saveVideoHistory,
+                    onSaveVideoHistoryToggle = onSaveVideoHistoryToggle,
+                    excludedFolders = excludedFolders,
+                    onAddExcludedFolder = onAddExcludedFolder,
+                    onRemoveExcludedFolder = onRemoveExcludedFolder,
+                    homeViewModel = homeViewModel,
+                    onLogoutClick = { 
+                        homeViewModel.logout()
+                    },
+                    onBackClick = { navController.popBackStack() },
+                    cacheEnabled = cacheEnabled,
+                    onCacheEnabledToggle = onCacheEnabledToggle,
+                    maxCacheSizeMb = maxCacheSizeMb,
+                    onMaxCacheSizeMbChange = onMaxCacheSizeMbChange,
+                    currentCacheSize = currentCacheSize,
+                    onClearCacheClick = onClearCacheClick,
+                    crossfadeEnabled = crossfadeEnabled,
+                    onCrossfadeEnabledToggle = onCrossfadeEnabledToggle,
+                    crossfadeDurationMs = crossfadeDurationMs,
+                    onCrossfadeDurationChange = onCrossfadeDurationChange
+                )
+            }
+            composable(
+                route = "downloads",
+                enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
+                exitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() },
+                popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 3 }) + fadeIn() },
+                popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
+            ) {
+                val downloadedSongs by playerViewModel.downloadedSongs.collectAsState()
+                val downloadProgress by playerViewModel.downloadProgress.collectAsState()
+                
+                com.fxc.themusicapp.ui.downloads.DownloadsScreen(
+                    downloadedSongs = downloadedSongs,
+                    activeDownloads = downloadProgress,
+                    onBack = { navController.popBackStack() },
+                    onPlaySong = { song -> 
+                        playerViewModel.playSong(song)
+                    },
+                    onPlayQueue = { songs, song ->
+                        playerViewModel.playQueue(songs, song)
+                    },
+                    onDeleteDownload = { songId -> 
+                        playerViewModel.deleteDownload(songId)
+                    },
+                    onCancelDownload = { songId -> 
+                        playerViewModel.cancelDownload(songId)
+                    },
+                    onRetryDownload = { song -> 
+                        playerViewModel.toggleDownload(song)
+                    }
+                )
+            }
+            composable(
+                route = "stats",
+                enterTransition = { 
+                    slideInHorizontally(
+                        initialOffsetX = { it },
+                        animationSpec = androidx.compose.animation.core.tween(500, easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f))
+                    ) + fadeIn(animationSpec = androidx.compose.animation.core.tween(400))
+                },
+                exitTransition = { 
+                    slideOutHorizontally(
+                        targetOffsetX = { it },
+                        animationSpec = androidx.compose.animation.core.tween(500, easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f))
+                    ) + fadeOut(animationSpec = androidx.compose.animation.core.tween(400))
+                },
+                popEnterTransition = { 
+                    slideInHorizontally(
+                        initialOffsetX = { -it / 3 },
+                        animationSpec = androidx.compose.animation.core.tween(500, easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f))
+                    ) + fadeIn(animationSpec = androidx.compose.animation.core.tween(400))
+                },
+                popExitTransition = { 
+                    slideOutHorizontally(
+                        targetOffsetX = { it },
+                        animationSpec = androidx.compose.animation.core.tween(500, easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f))
+                    ) + fadeOut(animationSpec = androidx.compose.animation.core.tween(400))
+                }
+            ) {
+                com.fxc.themusicapp.ui.library.StatsScreen(
+                    onBack = { navController.popBackStack() },
+                    viewModel = homeViewModel,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 160.dp)
+                )
+            }
+        }
+        
+        com.fxc.themusicapp.ui.video.VideoPlayerOverlay(
+            viewModel = videoPlayerViewModel
+        )
+    }
+}
+
