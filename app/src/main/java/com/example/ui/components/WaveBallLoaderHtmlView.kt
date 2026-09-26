@@ -381,7 +381,7 @@ fun WaveBallLoaderHtmlView(
     AndroidView(
         factory = { context ->
             WebView(context).apply {
-                setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                setLayerType(View.LAYER_TYPE_SOFTWARE, null)
                 setBackgroundColor(AndroidColor.TRANSPARENT)
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
